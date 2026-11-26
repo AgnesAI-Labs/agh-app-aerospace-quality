@@ -199,7 +199,8 @@
             "aero_trace",
             "aero_change_review",
             "aero_quality",
-            "skill_read"
+            "skill_read",
+            "ui_render"
           ]
         },
         "launch": {
@@ -355,7 +356,8 @@
             "aero_rule_propose",
             "aero_quality",
             "aero_skill_candidate",
-            "skill_read"
+            "skill_read",
+            "ui_render"
           ]
         },
         "launch": {
@@ -410,7 +412,12 @@
         "navigation": {
           "entries": [
             "@agnes-showcase/aerospace-quality#aero-home",
-            "@agnes-showcase/aerospace-quality#aero-tasks"
+            "@agnes-showcase/aerospace-quality#aero-tasks",
+            "@agnes-showcase/aerospace-quality#aero-requirements",
+            "@agnes-showcase/aerospace-quality#aero-tests",
+            "@agnes-showcase/aerospace-quality#aero-mrb",
+            "@agnes-showcase/aerospace-quality#aero-configuration",
+            "@agnes-showcase/aerospace-quality#aero-zeroing"
           ],
           "hideBuiltin": [
             "agents",

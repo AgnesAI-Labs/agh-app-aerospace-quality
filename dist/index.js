@@ -564,11 +564,78 @@ function briefing(state, locale) {
   };
 }
 
-// src/signature.ts
+// src/evidence.ts
 import { createHash } from "node:crypto";
+function anomalyEvidence(data) {
+  return {
+    title: `${data.anomalyId} \xB7 \u5F02\u5E38\u8C03\u67E5\u8BC1\u636E / Anomaly investigation`,
+    fields: [
+      ["\u8BD5\u9A8C / Campaign", `${data.campaign} \xB7 ${data.configuration} \xB7 ${data.lot} \xB7 ${data.unit}`],
+      ["\u5CF0\u503C / Peak", `${data.peakA.toFixed(3)} A`],
+      ["\u4E0A\u9650 / Upper limit", `${data.limitA.toFixed(2)} A`],
+      ["\u5F02\u5E38\u65F6\u7A97 / Anomaly window", `${data.windowMinutes.join("\u2013")} min`],
+      ["\u53D7\u63A7\u8BC1\u636E / Controlled evidence", data.evidence.join(" \xB7 ")],
+      ["\u5019\u9009\u673A\u7406 / Hypothesis", `${data.hypothesis["zh-CN"]} / ${data.hypothesis.en}`],
+      ["\u5224\u5B9A\u8303\u56F4 / Assessment scope", data.assessmentScope]
+    ]
+  };
+}
+function changeEvidence(data) {
+  return {
+    title: `${data.ecr.id} \xB7 \u66F4\u6539\u5F71\u54CD\u8BC4\u5BA1 / Change impact review`,
+    fields: [
+      ["\u57FA\u7EBF / Baseline", `${data.ecr.from} \u2192 ${data.ecr.to}`],
+      ["\u53D7\u5F71\u54CD\u9700\u6C42 / Affected requirements", data.requirements.join(" \xB7 ") || "\u2014"],
+      ["\u53D7\u5F71\u54CD\u63A5\u53E3 / Affected interfaces", data.interfaces.join(" \xB7 ") || "\u2014"],
+      ["\u6240\u9700\u590D\u9A8C / Required re-verification", data.tests.join(" \xB7 ") || "\u2014"],
+      ["\u89C4\u5219\u7248\u672C / Rule version", data.ruleVersion === null ? "\u2014" : String(data.ruleVersion)],
+      ["\u8FFD\u52A0\u7B5B\u9009 / Additional screening", data.screeningRequired ? "\u9700\u8981 / Required" : "\u672A\u89E6\u53D1 / Not triggered"],
+      ["\u89C4\u5219\u8BC1\u636E / Rule evidence", data.ruleEvidence.join(" \xB7 ") || "\u2014"]
+    ]
+  };
+}
+async function publishEvidence(ctx, evidence, revision2) {
+  const id2 = `aero-record-${createHash("sha256").update(ctx.session.toolUseId).digest("hex").slice(0, 32)}`;
+  const fields = [{ key: "revision", label: "\u9879\u76EE\u4FEE\u8BA2 / Programme revision" }];
+  const values = { revision: String(revision2) };
+  for (const [index, [label, value]] of evidence.fields.entries()) {
+    const key = `field-${index}`;
+    fields.push({ key, label });
+    values[key] = value;
+  }
+  const original = "\u8BF7\u5728\u5BBF\u4E3B\u5DE5\u5177\u8BE6\u60C5\u6216\u6267\u884C\u8BB0\u5F55\u67E5\u770B\u539F\u59CB\u8BC1\u636E\u3002 / See the original evidence in Host tool details or Trace.";
+  let full = false;
+  try {
+    const result = await ctx.tools.invoke(
+      "ui_render",
+      {
+        surface: {
+          id: id2,
+          revision: 1,
+          title: evidence.title,
+          placement: { inline: true, workbench: true, preferred: "inline" },
+          components: [{ id: "record", kind: "detail-card", dataKey: "record", fields }],
+          data: { record: values },
+          actions: []
+        }
+      },
+      { signal: ctx.signal }
+    );
+    ctx.signal.throwIfAborted();
+    if (!result.isError) return void 0;
+    const refused = result.structured;
+    full = !!refused && typeof refused === "object" && "code" in refused && refused.code === "UI_LIMIT" && "published" in refused && refused.published === false;
+  } catch {
+    ctx.signal.throwIfAborted();
+  }
+  return full ? `\u672C\u4F1A\u8BDD\u7684\u8BC1\u636E\u5361\u5DF2\u8FBE\u4E0A\u9650\u3002 / This session reached its card limit. ${original}` : `\u8BC1\u636E\u5361\u4E0D\u53EF\u7528\u3002 / The evidence card is unavailable. ${original}`;
+}
+
+// src/signature.ts
+import { createHash as createHash2 } from "node:crypto";
 async function sign(ctx, input, meanings, target) {
   ctx.signal.throwIfAborted();
-  const subjectRevision = createHash("sha256").update(JSON.stringify({ input, meanings })).digest("hex");
+  const subjectRevision = createHash2("sha256").update(JSON.stringify({ input, meanings })).digest("hex");
   const presentation = Object.fromEntries(
     ["en", "zh-CN"].map((locale) => {
       const zh = locale === "zh-CN";
@@ -789,7 +856,7 @@ var candidateSchema = Type.Object({ expectedRevision: revision }, strict);
 var outputSchema = Type.Object({ revision, data: Type.Unknown() }, strict);
 var playbook = readFileSync(new URL("../skills/quality-playbook/SKILL.md", import.meta.url), "utf8");
 var json = (v) => JSON.parse(JSON.stringify(v));
-function tool(name, description, parameters, run, mode = "read") {
+function tool(name, description, parameters, run, mode = "read", evidence) {
   return defineTool({
     name,
     description,
@@ -809,8 +876,14 @@ function tool(name, description, parameters, run, mode = "read") {
       try {
         const data = await run(input, ctx);
         const output = { revision: read(ctx.store).revision, data: json(data) };
-        return { content: [{ type: "text", text: JSON.stringify(output) }], structured: output };
+        const content = [{ type: "text", text: JSON.stringify(output) }];
+        if (evidence) {
+          const note = await publishEvidence(ctx, evidence(data), output.revision);
+          if (note) content.push({ type: "text", text: note });
+        }
+        return { content, structured: output };
       } catch (error) {
+        if (evidence) ctx.signal.throwIfAborted();
         const code = error?.message;
         return toolError(
           error instanceof Error ? error.message : typeof code === "string" && /^SKILL_[A-Z_]+$/.test(code) ? code : String(error)
@@ -836,7 +909,9 @@ var tools = [
     "aero_investigate",
     "Investigate AN-027 using measured limits, lot change and NCR evidence. Hypotheses are not confirmed causes / \u4F9D\u636E\u5B9E\u6D4B\u9650\u503C\u3001\u6279\u6B21\u66F4\u6539\u548C NCR \u8BCA\u65AD\u5F02\u5E38\uFF0C\u5047\u8BBE\u4E0D\u7B49\u4E8E\u539F\u56E0\u3002",
     Type.Object({ anomalyId: Type.Literal("AN-027") }, strict),
-    (_i, c) => investigate(read(c.store))
+    (_i, c) => investigate(read(c.store)),
+    "read",
+    anomalyEvidence
   ),
   tool(
     "aero_briefing",
@@ -858,7 +933,9 @@ var tools = [
     "aero_change_review",
     "Analyze ECR requirement/interface/test impact and the currently approved screening rule / \u5206\u6790\u66F4\u6539\u5F71\u54CD\u53CA\u5DF2\u6279\u51C6\u7684\u7B5B\u9009\u89C4\u5219\u3002",
     Type.Object({ ecrId: id }, strict),
-    (i, c) => impact(read(c.store), i.ecrId)
+    (i, c) => impact(read(c.store), i.ecrId),
+    "read",
+    changeEvidence
   ),
   tool(
     "aero_quality",
