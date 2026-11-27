@@ -27,7 +27,17 @@ it('public package inspection resolves the third-party application, eight profil
   expect(tools.find((tool) => tool.name === 'aero_report')?.meta.attestsHistory).toBe(true)
   expect(inspected.snapshot.application?.id).toBe('qiongxu-aerospace-quality')
   expect(inspected.snapshot.application?.agents).toHaveLength(5)
-  expect(inspected.snapshot.application?.presentation?.navigation?.entries).toHaveLength(2)
+  expect(inspected.snapshot.application?.presentation?.navigation?.entries).toEqual(
+    [
+      'aero-home',
+      'aero-tasks',
+      'aero-requirements',
+      'aero-tests',
+      'aero-mrb',
+      'aero-configuration',
+      'aero-zeroing',
+    ].map((id) => `${inspected.snapshot.packageId}#${id}`),
+  )
   const pageIcons = inspected.snapshot.contributions.flatMap((row) =>
     'client' in row ? (row.client?.homeEntries ?? []).map((page) => page.navigation?.icon) : [],
   )

@@ -3,6 +3,7 @@ import type { OwnedStore, ServiceContext, ToolContext } from '@agnes/extension-a
 import { type Context, defineAgnesPlugin, defineTool, toolError } from '@agnes/plugin-runtime'
 import { type Static, type TSchema, Type } from '@sinclair/typebox'
 import { briefing } from './briefing.js'
+import { anomalyEvidence, changeEvidence, type Evidence, publishEvidence } from './evidence.js'
 import { sign } from './signature.js'
 
 export { reviewPolicyPlugin } from './policy.js'
@@ -46,12 +47,13 @@ const candidateSchema = Type.Object({ expectedRevision: revision }, strict)
 const outputSchema = Type.Object({ revision, data: Type.Unknown() }, strict)
 const playbook = readFileSync(new URL('../skills/quality-playbook/SKILL.md', import.meta.url), 'utf8')
 const json = (v: unknown) => JSON.parse(JSON.stringify(v))
-function tool<S extends TSchema>(
+function tool<S extends TSchema, D>(
   name: string,
   description: string,
   parameters: S,
-  run: (input: Static<S>, ctx: ToolContext) => unknown | Promise<unknown>,
+  run: (input: Static<S>, ctx: ToolContext) => D | Promise<D>,
   mode: 'read' | 'draft' | 'decision' | 'report' = 'read',
+  evidence?: (data: D) => Evidence,
 ) {
   return defineTool({
     name,
@@ -72,8 +74,14 @@ function tool<S extends TSchema>(
       try {
         const data = await run(input, ctx)
         const output = { revision: read(ctx.store).revision, data: json(data) }
-        return { content: [{ type: 'text' as const, text: JSON.stringify(output) }], structured: output }
+        const content = [{ type: 'text' as const, text: JSON.stringify(output) }]
+        if (evidence) {
+          const note = await publishEvidence(ctx, evidence(data), output.revision)
+          if (note) content.push({ type: 'text', text: note })
+        }
+        return { content, structured: output }
       } catch (error) {
+        if (evidence) ctx.signal.throwIfAborted()
         const code = (error as { message?: unknown } | null)?.message
         return toolError(
           error instanceof Error
@@ -104,6 +112,8 @@ export const tools = [
     'Investigate AN-027 using measured limits, lot change and NCR evidence. Hypotheses are not confirmed causes / 依据实测限值、批次更改和 NCR 诊断异常，假设不等于原因。',
     Type.Object({ anomalyId: Type.Literal('AN-027') }, strict),
     (_i, c) => investigate(read(c.store)),
+    'read',
+    anomalyEvidence,
   ),
   tool(
     'aero_briefing',
@@ -126,6 +136,8 @@ export const tools = [
     'Analyze ECR requirement/interface/test impact and the currently approved screening rule / 分析更改影响及已批准的筛选规则。',
     Type.Object({ ecrId: id }, strict),
     (i, c) => impact(read(c.store), i.ecrId),
+    'read',
+    changeEvidence,
   ),
   tool(
     'aero_quality',

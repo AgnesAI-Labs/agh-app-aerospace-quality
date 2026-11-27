@@ -13,6 +13,9 @@
 6 个试验活动（484 个采样点）、18 个 NCR、12 个 ECR、4 个基线、24 个器件和双五条十项证据，业务快照固定在 2026-10-20。
 
 - **需求与试验：** 需求、设计、验证的追溯，缺口与孤儿过滤；电流、温度、真空证据，突出 AN-027 异常时间窗。
+- **证据卡：** 在官方工作台上，新执行的 `aero_investigate` 和 `aero_change_review` 无需采纳应用即可显示不带操作按钮的
+  Intelligent UI 卡片。卡片不可用（包括达到会话卡片上限）时，仍可在宿主工具详情和执行记录查看完整结果。
+  旧结果不会补建卡片；采纳应用后的「当前对象」标签与此独立。
 - **MRB：** 比较五种处置方案，保存理由，请求人工批准。`dispositioned` 表示批准执行，不表示已返工或放行，硬件保持隔离。
 - **技术状态：** 基线登记与 ECR 影响图；批准的更改会使受影响验证失效，并保持目标基线。
 - **归零：** 双五条十项标准；证据不全时即使有批准也拒绝关闭。
@@ -46,6 +49,9 @@ agh plugins add ./aerospace-quality.tgz
 agh app preview '@agnes-showcase/aerospace-quality#qiongxu-aerospace-quality'
 agh app adopt   '@agnes-showcase/aerospace-quality#qiongxu-aerospace-quality' --yes
 ```
+
+采纳预览会列出七个现有导航页面。侧栏保留「项目总览」与「待办与签署」；「更多」包含需求追溯、试验与异常、
+NCR / MRB、技术状态和质量归零。
 
 采纳后可用智能体 `@agnes-showcase/aerospace-quality#quality`、`#trace`、`#investigator`、`#mrb`、`#configuration`。
 `/?admin` 或 `agh app clear` 可恢复宿主界面。每周 NCR 摘要的定时任务只由显式执行 `automation.mjs` 创建（见开发）。

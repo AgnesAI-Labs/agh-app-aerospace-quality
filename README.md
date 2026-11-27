@@ -17,6 +17,10 @@ closure criteria, frozen at 20 October 2026.
 
 - **Requirements and tests:** requirement, design and verification traceability with gap/orphan filters; current,
   temperature and vacuum evidence with the highlighted AN-027 anomaly window.
+- **Evidence cards:** On the official workbench, new `aero_investigate` and `aero_change_review` calls can show
+  actionless Intelligent UI cards without adopting the app. If a card is unavailable, including when the
+  session's card limit is reached, the full result stays in Host tool details and Trace. Earlier results are
+  not recreated as cards. The adopted app's Current object tab is separate.
 - **MRB:** compare all five dispositions, save the rationale, request human approval. `dispositioned` means
   approved for execution, not reworked or released; hardware stays on hold.
 - **Configuration:** baseline register and ECR impact graph; an approved change invalidates the affected
@@ -55,6 +59,9 @@ adopt the application, either in the Web **Settings → Application** page or:
 agh app preview '@agnes-showcase/aerospace-quality#qiongxu-aerospace-quality'
 agh app adopt   '@agnes-showcase/aerospace-quality#qiongxu-aerospace-quality' --yes
 ```
+
+The adoption preview lists all seven existing navigation pages. **Programme overview** and **Tasks & signatures**
+stay in the sidebar. **More** contains Requirements, Tests & anomalies, NCR / MRB, Configuration, and Quality zeroing.
 
 The agents are then available as `@agnes-showcase/aerospace-quality#quality`, `#trace`, `#investigator`, `#mrb`
 and `#configuration`. `/?admin` or `agh app clear` restores the host presentation. An optional weekly NCR digest
